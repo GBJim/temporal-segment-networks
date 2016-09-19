@@ -5,13 +5,13 @@ layer {
   top: "data"
   top: "label"
   video_data_param {
-    source: "data/ucf101_rgb_train_split_1.txt"
+    source: "data/ucf101_flow_train_split_2.txt"
     batch_size: 14
-    new_length: 1
+    new_length: 5
     num_segments: 3
-    modality: RGB
+    modality: FLOW
     shuffle: true
-    name_pattern: "img_%05d.jpg"
+    name_pattern: "flow_%c_%05d.jpg"
   }
   transform_param{
     crop_size: 224
@@ -20,9 +20,9 @@ layer {
     more_fix_crop: true
     multi_scale: true
     max_distort: 1
-    scale_ratios:[1,.875,.75, .66]
-    is_flow: false
-    mean_value: [104, 117, 123, 104, 117, 123, 104, 117, 123]
+    scale_ratios: [1,.875,.75]
+    mean_value: 128
+    is_flow: true
   }
   include: { phase: TRAIN }
 }
@@ -32,31 +32,31 @@ layer {
   top: "data"
   top: "label"
   video_data_param {
-    source: "data/ucf101_rgb_val_split_1.txt"
+    source: "data/ucf101_flow_val_split_2.txt"
     batch_size: 1
-    new_length: 1
+    new_length: 5
     num_segments: 3
-    modality: RGB
-    name_pattern: "img_%05d.jpg"
+    modality: FLOW
+    name_pattern: "flow_%c_%05d.jpg"
   }
   transform_param{
     crop_size: 224
     mirror: false
-    mean_value: [104, 117, 123, 104, 117, 123, 104, 117, 123]
+    mean_value: 128
+    is_flow: true
   }
   include: { phase: TEST }
 }
-layer { name: "reshape_data" type: "Reshape" bottom: "data" top: "reshape_data" reshape_param { shape { dim: -1 dim: 3 dim: 224 dim: 224 } } }
- 
+layer { name: "data_reshape" type: "Reshape" bottom: "data" top: "data_reshape" reshape_param { shape { dim: [-1, 10, 224, 224] } }}
 ####################################### conv1 #######################################
-layer { name: "conv1/7x7_s2" type: "Convolution" bottom: "reshape_data" top: "conv1/7x7_s2"
-  param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
+layer { name: "conv1/7x7_s2" type: "Convolution" bottom: "data_reshape" top: "conv1/7x7_s2"
+  param { lr_mult: 5 decay_mult: 1 } param { lr_mult: 10 decay_mult: 0 }
   convolution_param { num_output: 64 pad: 3 kernel_size: 7 stride: 2
     weight_filler { type: "xavier" }
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "conv1/7x7_s2_bn" type: "BN" bottom: "conv1/7x7_s2" top: "conv1/7x7_s2_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: false slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: false slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "conv1/relu_7x7" type: "ReLU" bottom: "conv1/7x7_s2_bn" top: "conv1/7x7_s2_bn" }
 layer { name: "pool1/3x3_s2" type: "Pooling" bottom: "conv1/7x7_s2_bn" top: "pool1/3x3_s2"
   pooling_param { pool: MAX kernel_size: 3 stride: 2 } }
@@ -69,7 +69,7 @@ layer { name: "conv2/3x3_reduce" type: "Convolution" bottom: "pool1/3x3_s2" top:
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "conv2/3x3_reduce_bn" type: "BN" bottom: "conv2/3x3_reduce" top: "conv2/3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "conv2/relu_3x3_reduce" type: "ReLU" bottom: "conv2/3x3_reduce_bn" top: "conv2/3x3_reduce_bn" }
 layer { name: "conv2/3x3" type: "Convolution" bottom: "conv2/3x3_reduce_bn" top: "conv2/3x3"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -78,7 +78,7 @@ layer { name: "conv2/3x3" type: "Convolution" bottom: "conv2/3x3_reduce_bn" top:
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "conv2/3x3_bn" type: "BN" bottom: "conv2/3x3" top: "conv2/3x3_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "conv2/relu_3x3" type: "ReLU" bottom: "conv2/3x3_bn" top: "conv2/3x3_bn" }
 layer { name: "pool2/3x3_s2" type: "Pooling" bottom: "conv2/3x3_bn" top: "pool2/3x3_s2"
   pooling_param { pool: MAX kernel_size: 3 stride: 2 } }
@@ -91,7 +91,7 @@ layer { name: "inception_3a/1x1" type: "Convolution" bottom: "pool2/3x3_s2" top:
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3a/1x1_bn" type: "BN" bottom: "inception_3a/1x1" top: "inception_3a/1x1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3a/relu_1x1" type: "ReLU" bottom: "inception_3a/1x1_bn" top: "inception_3a/1x1_bn" }
 layer { name: "inception_3a/3x3_reduce" type: "Convolution" bottom: "pool2/3x3_s2" top: "inception_3a/3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -100,7 +100,7 @@ layer { name: "inception_3a/3x3_reduce" type: "Convolution" bottom: "pool2/3x3_s
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3a/3x3_reduce_bn" type: "BN" bottom: "inception_3a/3x3_reduce" top: "inception_3a/3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3a/relu_3x3_reduce" type: "ReLU" bottom: "inception_3a/3x3_reduce_bn" top: "inception_3a/3x3_reduce_bn" }
 layer { name: "inception_3a/3x3" type: "Convolution" bottom: "inception_3a/3x3_reduce_bn" top: "inception_3a/3x3"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -109,7 +109,7 @@ layer { name: "inception_3a/3x3" type: "Convolution" bottom: "inception_3a/3x3_r
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3a/3x3_bn" type: "BN" bottom: "inception_3a/3x3" top: "inception_3a/3x3_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3a/relu_3x3" type: "ReLU" bottom: "inception_3a/3x3_bn" top: "inception_3a/3x3_bn" }
 layer { name: "inception_3a/double_3x3_reduce" type: "Convolution" bottom: "pool2/3x3_s2" top: "inception_3a/double_3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -118,7 +118,7 @@ layer { name: "inception_3a/double_3x3_reduce" type: "Convolution" bottom: "pool
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3a/double_3x3_reduce_bn" type: "BN" bottom: "inception_3a/double_3x3_reduce" top: "inception_3a/double_3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3a/relu_double_3x3_reduce" type: "ReLU" bottom: "inception_3a/double_3x3_reduce_bn" top: "inception_3a/double_3x3_reduce_bn" }
 layer { name: "inception_3a/double_3x3_1" type: "Convolution" bottom: "inception_3a/double_3x3_reduce_bn" top: "inception_3a/double_3x3_1"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -127,7 +127,7 @@ layer { name: "inception_3a/double_3x3_1" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3a/double_3x3_1_bn" type: "BN" bottom: "inception_3a/double_3x3_1" top: "inception_3a/double_3x3_1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3a/relu_double_3x3_1" type: "ReLU" bottom: "inception_3a/double_3x3_1_bn" top: "inception_3a/double_3x3_1_bn" }
 layer { name: "inception_3a/double_3x3_2" type: "Convolution" bottom: "inception_3a/double_3x3_1_bn" top: "inception_3a/double_3x3_2"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -136,7 +136,7 @@ layer { name: "inception_3a/double_3x3_2" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3a/double_3x3_2_bn" type: "BN" bottom: "inception_3a/double_3x3_2" top: "inception_3a/double_3x3_2_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3a/relu_double_3x3_2" type: "ReLU" bottom: "inception_3a/double_3x3_2_bn" top: "inception_3a/double_3x3_2_bn" }
 layer { name: "inception_3a/pool" type: "Pooling" bottom: "pool2/3x3_s2" top: "inception_3a/pool"
   pooling_param { pool: AVE kernel_size: 3 stride: 1 pad: 1 } }
@@ -147,7 +147,7 @@ layer { name: "inception_3a/pool_proj" type: "Convolution" bottom: "inception_3a
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3a/pool_proj_bn" type: "BN" bottom: "inception_3a/pool_proj" top: "inception_3a/pool_proj_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3a/relu_pool_proj" type: "ReLU" bottom: "inception_3a/pool_proj_bn" top: "inception_3a/pool_proj_bn" }
 layer { name: "inception_3a/output" type: "Concat"
   bottom: "inception_3a/1x1_bn"
@@ -164,7 +164,7 @@ layer { name: "inception_3b/1x1" type: "Convolution" bottom: "inception_3a/outpu
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3b/1x1_bn" type: "BN" bottom: "inception_3b/1x1" top: "inception_3b/1x1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3b/relu_1x1" type: "ReLU" bottom: "inception_3b/1x1_bn" top: "inception_3b/1x1_bn" }
 layer { name: "inception_3b/3x3_reduce" type: "Convolution" bottom: "inception_3a/output" top: "inception_3b/3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -173,7 +173,7 @@ layer { name: "inception_3b/3x3_reduce" type: "Convolution" bottom: "inception_3
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3b/3x3_reduce_bn" type: "BN" bottom: "inception_3b/3x3_reduce" top: "inception_3b/3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3b/relu_3x3_reduce" type: "ReLU" bottom: "inception_3b/3x3_reduce_bn" top: "inception_3b/3x3_reduce_bn" }
 layer { name: "inception_3b/3x3" type: "Convolution" bottom: "inception_3b/3x3_reduce_bn" top: "inception_3b/3x3"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -182,7 +182,7 @@ layer { name: "inception_3b/3x3" type: "Convolution" bottom: "inception_3b/3x3_r
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3b/3x3_bn" type: "BN" bottom: "inception_3b/3x3" top: "inception_3b/3x3_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3b/relu_3x3" type: "ReLU" bottom: "inception_3b/3x3_bn" top: "inception_3b/3x3_bn" }
 layer { name: "inception_3b/double_3x3_reduce" type: "Convolution" bottom: "inception_3a/output" top: "inception_3b/double_3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -191,7 +191,7 @@ layer { name: "inception_3b/double_3x3_reduce" type: "Convolution" bottom: "ince
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3b/double_3x3_reduce_bn" type: "BN" bottom: "inception_3b/double_3x3_reduce" top: "inception_3b/double_3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3b/relu_double_3x3_reduce" type: "ReLU" bottom: "inception_3b/double_3x3_reduce_bn" top: "inception_3b/double_3x3_reduce_bn" }
 layer { name: "inception_3b/double_3x3_1" type: "Convolution" bottom: "inception_3b/double_3x3_reduce_bn" top: "inception_3b/double_3x3_1"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -200,7 +200,7 @@ layer { name: "inception_3b/double_3x3_1" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3b/double_3x3_1_bn" type: "BN" bottom: "inception_3b/double_3x3_1" top: "inception_3b/double_3x3_1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3b/relu_double_3x3_1" type: "ReLU" bottom: "inception_3b/double_3x3_1_bn" top: "inception_3b/double_3x3_1_bn" }
 layer { name: "inception_3b/double_3x3_2" type: "Convolution" bottom: "inception_3b/double_3x3_1_bn" top: "inception_3b/double_3x3_2"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -209,7 +209,7 @@ layer { name: "inception_3b/double_3x3_2" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3b/double_3x3_2_bn" type: "BN" bottom: "inception_3b/double_3x3_2" top: "inception_3b/double_3x3_2_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3b/relu_double_3x3_2" type: "ReLU" bottom: "inception_3b/double_3x3_2_bn" top: "inception_3b/double_3x3_2_bn" }
 layer { name: "inception_3b/pool" type: "Pooling" bottom: "inception_3a/output" top: "inception_3b/pool"
   pooling_param { pool: AVE kernel_size: 3 stride: 1 pad: 1 } }
@@ -220,7 +220,7 @@ layer { name: "inception_3b/pool_proj" type: "Convolution" bottom: "inception_3b
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3b/pool_proj_bn" type: "BN" bottom: "inception_3b/pool_proj" top: "inception_3b/pool_proj_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3b/relu_pool_proj" type: "ReLU" bottom: "inception_3b/pool_proj_bn" top: "inception_3b/pool_proj_bn" }
 layer { name: "inception_3b/output" type: "Concat"
   bottom: "inception_3b/1x1_bn"
@@ -237,7 +237,7 @@ layer { name: "inception_3c/3x3_reduce" type: "Convolution" bottom: "inception_3
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3c/3x3_reduce_bn" type: "BN" bottom: "inception_3c/3x3_reduce" top: "inception_3c/3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3c/relu_3x3_reduce" type: "ReLU" bottom: "inception_3c/3x3_reduce_bn" top: "inception_3c/3x3_reduce_bn" }
 layer { name: "inception_3c/3x3" type: "Convolution" bottom: "inception_3c/3x3_reduce_bn" top: "inception_3c/3x3"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -246,7 +246,7 @@ layer { name: "inception_3c/3x3" type: "Convolution" bottom: "inception_3c/3x3_r
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3c/3x3_bn" type: "BN" bottom: "inception_3c/3x3" top: "inception_3c/3x3_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3c/relu_3x3" type: "ReLU" bottom: "inception_3c/3x3_bn" top: "inception_3c/3x3_bn" }
 layer { name: "inception_3c/double_3x3_reduce" type: "Convolution" bottom: "inception_3b/output" top: "inception_3c/double_3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -255,7 +255,7 @@ layer { name: "inception_3c/double_3x3_reduce" type: "Convolution" bottom: "ince
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3c/double_3x3_reduce_bn" type: "BN" bottom: "inception_3c/double_3x3_reduce" top: "inception_3c/double_3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3c/relu_double_3x3_reduce" type: "ReLU" bottom: "inception_3c/double_3x3_reduce_bn" top: "inception_3c/double_3x3_reduce_bn" }
 layer { name: "inception_3c/double_3x3_1" type: "Convolution" bottom: "inception_3c/double_3x3_reduce_bn" top: "inception_3c/double_3x3_1"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -264,7 +264,7 @@ layer { name: "inception_3c/double_3x3_1" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3c/double_3x3_1_bn" type: "BN" bottom: "inception_3c/double_3x3_1" top: "inception_3c/double_3x3_1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3c/relu_double_3x3_1" type: "ReLU" bottom: "inception_3c/double_3x3_1_bn" top: "inception_3c/double_3x3_1_bn" }
 layer { name: "inception_3c/double_3x3_2" type: "Convolution" bottom: "inception_3c/double_3x3_1_bn" top: "inception_3c/double_3x3_2"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -273,7 +273,7 @@ layer { name: "inception_3c/double_3x3_2" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_3c/double_3x3_2_bn" type: "BN" bottom: "inception_3c/double_3x3_2" top: "inception_3c/double_3x3_2_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_3c/relu_double_3x3_2" type: "ReLU" bottom: "inception_3c/double_3x3_2_bn" top: "inception_3c/double_3x3_2_bn" }
 layer { name: "inception_3c/pool" type: "Pooling" bottom: "inception_3b/output" top: "inception_3c/pool"
   pooling_param { pool: MAX kernel_size: 3 stride: 2 } }
@@ -291,7 +291,7 @@ layer { name: "inception_4a/1x1" type: "Convolution" bottom: "inception_3c/outpu
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4a/1x1_bn" type: "BN" bottom: "inception_4a/1x1" top: "inception_4a/1x1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4a/relu_1x1" type: "ReLU" bottom: "inception_4a/1x1_bn" top: "inception_4a/1x1_bn" }
 layer { name: "inception_4a/3x3_reduce" type: "Convolution" bottom: "inception_3c/output" top: "inception_4a/3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -300,7 +300,7 @@ layer { name: "inception_4a/3x3_reduce" type: "Convolution" bottom: "inception_3
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4a/3x3_reduce_bn" type: "BN" bottom: "inception_4a/3x3_reduce" top: "inception_4a/3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4a/relu_3x3_reduce" type: "ReLU" bottom: "inception_4a/3x3_reduce_bn" top: "inception_4a/3x3_reduce_bn" }
 layer { name: "inception_4a/3x3" type: "Convolution" bottom: "inception_4a/3x3_reduce_bn" top: "inception_4a/3x3"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -309,7 +309,7 @@ layer { name: "inception_4a/3x3" type: "Convolution" bottom: "inception_4a/3x3_r
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4a/3x3_bn" type: "BN" bottom: "inception_4a/3x3" top: "inception_4a/3x3_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4a/relu_3x3" type: "ReLU" bottom: "inception_4a/3x3_bn" top: "inception_4a/3x3_bn" }
 layer { name: "inception_4a/double_3x3_reduce" type: "Convolution" bottom: "inception_3c/output" top: "inception_4a/double_3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -318,7 +318,7 @@ layer { name: "inception_4a/double_3x3_reduce" type: "Convolution" bottom: "ince
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4a/double_3x3_reduce_bn" type: "BN" bottom: "inception_4a/double_3x3_reduce" top: "inception_4a/double_3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4a/relu_double_3x3_reduce" type: "ReLU" bottom: "inception_4a/double_3x3_reduce_bn" top: "inception_4a/double_3x3_reduce_bn" }
 layer { name: "inception_4a/double_3x3_1" type: "Convolution" bottom: "inception_4a/double_3x3_reduce_bn" top: "inception_4a/double_3x3_1"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -327,7 +327,7 @@ layer { name: "inception_4a/double_3x3_1" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4a/double_3x3_1_bn" type: "BN" bottom: "inception_4a/double_3x3_1" top: "inception_4a/double_3x3_1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4a/relu_double_3x3_1" type: "ReLU" bottom: "inception_4a/double_3x3_1_bn" top: "inception_4a/double_3x3_1_bn" }
 layer { name: "inception_4a/double_3x3_2" type: "Convolution" bottom: "inception_4a/double_3x3_1_bn" top: "inception_4a/double_3x3_2"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -336,7 +336,7 @@ layer { name: "inception_4a/double_3x3_2" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4a/double_3x3_2_bn" type: "BN" bottom: "inception_4a/double_3x3_2" top: "inception_4a/double_3x3_2_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4a/relu_double_3x3_2" type: "ReLU" bottom: "inception_4a/double_3x3_2_bn" top: "inception_4a/double_3x3_2_bn" }
 layer { name: "inception_4a/pool" type: "Pooling" bottom: "inception_3c/output" top: "inception_4a/pool"
   pooling_param { pool: AVE kernel_size: 3 stride: 1 pad: 1 } }
@@ -347,7 +347,7 @@ layer { name: "inception_4a/pool_proj" type: "Convolution" bottom: "inception_4a
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4a/pool_proj_bn" type: "BN" bottom: "inception_4a/pool_proj" top: "inception_4a/pool_proj_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4a/relu_pool_proj" type: "ReLU" bottom: "inception_4a/pool_proj_bn" top: "inception_4a/pool_proj_bn" }
 layer { name: "inception_4a/output" type: "Concat"
   bottom: "inception_4a/1x1_bn"
@@ -364,7 +364,7 @@ layer { name: "inception_4b/1x1" type: "Convolution" bottom: "inception_4a/outpu
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4b/1x1_bn" type: "BN" bottom: "inception_4b/1x1" top: "inception_4b/1x1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4b/relu_1x1" type: "ReLU" bottom: "inception_4b/1x1_bn" top: "inception_4b/1x1_bn" }
 layer { name: "inception_4b/3x3_reduce" type: "Convolution" bottom: "inception_4a/output" top: "inception_4b/3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -373,7 +373,7 @@ layer { name: "inception_4b/3x3_reduce" type: "Convolution" bottom: "inception_4
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4b/3x3_reduce_bn" type: "BN" bottom: "inception_4b/3x3_reduce" top: "inception_4b/3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4b/relu_3x3_reduce" type: "ReLU" bottom: "inception_4b/3x3_reduce_bn" top: "inception_4b/3x3_reduce_bn" }
 layer { name: "inception_4b/3x3" type: "Convolution" bottom: "inception_4b/3x3_reduce_bn" top: "inception_4b/3x3"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -382,7 +382,7 @@ layer { name: "inception_4b/3x3" type: "Convolution" bottom: "inception_4b/3x3_r
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4b/3x3_bn" type: "BN" bottom: "inception_4b/3x3" top: "inception_4b/3x3_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4b/relu_3x3" type: "ReLU" bottom: "inception_4b/3x3_bn" top: "inception_4b/3x3_bn" }
 layer { name: "inception_4b/double_3x3_reduce" type: "Convolution" bottom: "inception_4a/output" top: "inception_4b/double_3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -391,7 +391,7 @@ layer { name: "inception_4b/double_3x3_reduce" type: "Convolution" bottom: "ince
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4b/double_3x3_reduce_bn" type: "BN" bottom: "inception_4b/double_3x3_reduce" top: "inception_4b/double_3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4b/relu_double_3x3_reduce" type: "ReLU" bottom: "inception_4b/double_3x3_reduce_bn" top: "inception_4b/double_3x3_reduce_bn" }
 layer { name: "inception_4b/double_3x3_1" type: "Convolution" bottom: "inception_4b/double_3x3_reduce_bn" top: "inception_4b/double_3x3_1"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -400,7 +400,7 @@ layer { name: "inception_4b/double_3x3_1" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4b/double_3x3_1_bn" type: "BN" bottom: "inception_4b/double_3x3_1" top: "inception_4b/double_3x3_1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4b/relu_double_3x3_1" type: "ReLU" bottom: "inception_4b/double_3x3_1_bn" top: "inception_4b/double_3x3_1_bn" }
 layer { name: "inception_4b/double_3x3_2" type: "Convolution" bottom: "inception_4b/double_3x3_1_bn" top: "inception_4b/double_3x3_2"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -409,7 +409,7 @@ layer { name: "inception_4b/double_3x3_2" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4b/double_3x3_2_bn" type: "BN" bottom: "inception_4b/double_3x3_2" top: "inception_4b/double_3x3_2_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4b/relu_double_3x3_2" type: "ReLU" bottom: "inception_4b/double_3x3_2_bn" top: "inception_4b/double_3x3_2_bn" }
 layer { name: "inception_4b/pool" type: "Pooling" bottom: "inception_4a/output" top: "inception_4b/pool"
   pooling_param { pool: AVE kernel_size: 3 stride: 1 pad: 1 } }
@@ -420,7 +420,7 @@ layer { name: "inception_4b/pool_proj" type: "Convolution" bottom: "inception_4b
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4b/pool_proj_bn" type: "BN" bottom: "inception_4b/pool_proj" top: "inception_4b/pool_proj_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4b/relu_pool_proj" type: "ReLU" bottom: "inception_4b/pool_proj_bn" top: "inception_4b/pool_proj_bn" }
 layer { name: "inception_4b/output" type: "Concat"
   bottom: "inception_4b/1x1_bn"
@@ -437,7 +437,7 @@ layer { name: "inception_4c/1x1" type: "Convolution" bottom: "inception_4b/outpu
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4c/1x1_bn" type: "BN" bottom: "inception_4c/1x1" top: "inception_4c/1x1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4c/relu_1x1" type: "ReLU" bottom: "inception_4c/1x1_bn" top: "inception_4c/1x1_bn" }
 layer { name: "inception_4c/3x3_reduce" type: "Convolution" bottom: "inception_4b/output" top: "inception_4c/3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -446,7 +446,7 @@ layer { name: "inception_4c/3x3_reduce" type: "Convolution" bottom: "inception_4
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4c/3x3_reduce_bn" type: "BN" bottom: "inception_4c/3x3_reduce" top: "inception_4c/3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4c/relu_3x3_reduce" type: "ReLU" bottom: "inception_4c/3x3_reduce_bn" top: "inception_4c/3x3_reduce_bn" }
 layer { name: "inception_4c/3x3" type: "Convolution" bottom: "inception_4c/3x3_reduce_bn" top: "inception_4c/3x3"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -455,7 +455,7 @@ layer { name: "inception_4c/3x3" type: "Convolution" bottom: "inception_4c/3x3_r
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4c/3x3_bn" type: "BN" bottom: "inception_4c/3x3" top: "inception_4c/3x3_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4c/relu_3x3" type: "ReLU" bottom: "inception_4c/3x3_bn" top: "inception_4c/3x3_bn" }
 layer { name: "inception_4c/double_3x3_reduce" type: "Convolution" bottom: "inception_4b/output" top: "inception_4c/double_3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -464,7 +464,7 @@ layer { name: "inception_4c/double_3x3_reduce" type: "Convolution" bottom: "ince
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4c/double_3x3_reduce_bn" type: "BN" bottom: "inception_4c/double_3x3_reduce" top: "inception_4c/double_3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4c/relu_double_3x3_reduce" type: "ReLU" bottom: "inception_4c/double_3x3_reduce_bn" top: "inception_4c/double_3x3_reduce_bn" }
 layer { name: "inception_4c/double_3x3_1" type: "Convolution" bottom: "inception_4c/double_3x3_reduce_bn" top: "inception_4c/double_3x3_1"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -473,7 +473,7 @@ layer { name: "inception_4c/double_3x3_1" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4c/double_3x3_1_bn" type: "BN" bottom: "inception_4c/double_3x3_1" top: "inception_4c/double_3x3_1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4c/relu_double_3x3_1" type: "ReLU" bottom: "inception_4c/double_3x3_1_bn" top: "inception_4c/double_3x3_1_bn" }
 layer { name: "inception_4c/double_3x3_2" type: "Convolution" bottom: "inception_4c/double_3x3_1_bn" top: "inception_4c/double_3x3_2"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -482,7 +482,7 @@ layer { name: "inception_4c/double_3x3_2" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4c/double_3x3_2_bn" type: "BN" bottom: "inception_4c/double_3x3_2" top: "inception_4c/double_3x3_2_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4c/relu_double_3x3_2" type: "ReLU" bottom: "inception_4c/double_3x3_2_bn" top: "inception_4c/double_3x3_2_bn" }
 layer { name: "inception_4c/pool" type: "Pooling" bottom: "inception_4b/output" top: "inception_4c/pool"
   pooling_param { pool: AVE kernel_size: 3 stride: 1 pad: 1 } }
@@ -493,7 +493,7 @@ layer { name: "inception_4c/pool_proj" type: "Convolution" bottom: "inception_4c
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4c/pool_proj_bn" type: "BN" bottom: "inception_4c/pool_proj" top: "inception_4c/pool_proj_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4c/relu_pool_proj" type: "ReLU" bottom: "inception_4c/pool_proj_bn" top: "inception_4c/pool_proj_bn" }
 layer { name: "inception_4c/output" type: "Concat"
   bottom: "inception_4c/1x1_bn"
@@ -510,7 +510,7 @@ layer { name: "inception_4d/1x1" type: "Convolution" bottom: "inception_4c/outpu
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4d/1x1_bn" type: "BN" bottom: "inception_4d/1x1" top: "inception_4d/1x1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4d/relu_1x1" type: "ReLU" bottom: "inception_4d/1x1_bn" top: "inception_4d/1x1_bn" }
 layer { name: "inception_4d/3x3_reduce" type: "Convolution" bottom: "inception_4c/output" top: "inception_4d/3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -519,7 +519,7 @@ layer { name: "inception_4d/3x3_reduce" type: "Convolution" bottom: "inception_4
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4d/3x3_reduce_bn" type: "BN" bottom: "inception_4d/3x3_reduce" top: "inception_4d/3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4d/relu_3x3_reduce" type: "ReLU" bottom: "inception_4d/3x3_reduce_bn" top: "inception_4d/3x3_reduce_bn" }
 layer { name: "inception_4d/3x3" type: "Convolution" bottom: "inception_4d/3x3_reduce_bn" top: "inception_4d/3x3"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -528,7 +528,7 @@ layer { name: "inception_4d/3x3" type: "Convolution" bottom: "inception_4d/3x3_r
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4d/3x3_bn" type: "BN" bottom: "inception_4d/3x3" top: "inception_4d/3x3_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4d/relu_3x3" type: "ReLU" bottom: "inception_4d/3x3_bn" top: "inception_4d/3x3_bn" }
 layer { name: "inception_4d/double_3x3_reduce" type: "Convolution" bottom: "inception_4c/output" top: "inception_4d/double_3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -537,7 +537,7 @@ layer { name: "inception_4d/double_3x3_reduce" type: "Convolution" bottom: "ince
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4d/double_3x3_reduce_bn" type: "BN" bottom: "inception_4d/double_3x3_reduce" top: "inception_4d/double_3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4d/relu_double_3x3_reduce" type: "ReLU" bottom: "inception_4d/double_3x3_reduce_bn" top: "inception_4d/double_3x3_reduce_bn" }
 layer { name: "inception_4d/double_3x3_1" type: "Convolution" bottom: "inception_4d/double_3x3_reduce_bn" top: "inception_4d/double_3x3_1"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -546,7 +546,7 @@ layer { name: "inception_4d/double_3x3_1" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4d/double_3x3_1_bn" type: "BN" bottom: "inception_4d/double_3x3_1" top: "inception_4d/double_3x3_1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4d/relu_double_3x3_1" type: "ReLU" bottom: "inception_4d/double_3x3_1_bn" top: "inception_4d/double_3x3_1_bn" }
 layer { name: "inception_4d/double_3x3_2" type: "Convolution" bottom: "inception_4d/double_3x3_1_bn" top: "inception_4d/double_3x3_2"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -555,7 +555,7 @@ layer { name: "inception_4d/double_3x3_2" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4d/double_3x3_2_bn" type: "BN" bottom: "inception_4d/double_3x3_2" top: "inception_4d/double_3x3_2_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4d/relu_double_3x3_2" type: "ReLU" bottom: "inception_4d/double_3x3_2_bn" top: "inception_4d/double_3x3_2_bn" }
 layer { name: "inception_4d/pool" type: "Pooling" bottom: "inception_4c/output" top: "inception_4d/pool"
   pooling_param { pool: AVE kernel_size: 3 stride: 1 pad: 1 } }
@@ -566,7 +566,7 @@ layer { name: "inception_4d/pool_proj" type: "Convolution" bottom: "inception_4d
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4d/pool_proj_bn" type: "BN" bottom: "inception_4d/pool_proj" top: "inception_4d/pool_proj_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4d/relu_pool_proj" type: "ReLU" bottom: "inception_4d/pool_proj_bn" top: "inception_4d/pool_proj_bn" }
 layer { name: "inception_4d/output" type: "Concat"
   bottom: "inception_4d/1x1_bn"
@@ -583,7 +583,7 @@ layer { name: "inception_4e/3x3_reduce" type: "Convolution" bottom: "inception_4
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4e/3x3_reduce_bn" type: "BN" bottom: "inception_4e/3x3_reduce" top: "inception_4e/3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4e/relu_3x3_reduce" type: "ReLU" bottom: "inception_4e/3x3_reduce_bn" top: "inception_4e/3x3_reduce_bn" }
 layer { name: "inception_4e/3x3" type: "Convolution" bottom: "inception_4e/3x3_reduce_bn" top: "inception_4e/3x3"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -592,7 +592,7 @@ layer { name: "inception_4e/3x3" type: "Convolution" bottom: "inception_4e/3x3_r
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4e/3x3_bn" type: "BN" bottom: "inception_4e/3x3" top: "inception_4e/3x3_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4e/relu_3x3" type: "ReLU" bottom: "inception_4e/3x3_bn" top: "inception_4e/3x3_bn" }
 layer { name: "inception_4e/double_3x3_reduce" type: "Convolution" bottom: "inception_4d/output" top: "inception_4e/double_3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -601,7 +601,7 @@ layer { name: "inception_4e/double_3x3_reduce" type: "Convolution" bottom: "ince
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4e/double_3x3_reduce_bn" type: "BN" bottom: "inception_4e/double_3x3_reduce" top: "inception_4e/double_3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4e/relu_double_3x3_reduce" type: "ReLU" bottom: "inception_4e/double_3x3_reduce_bn" top: "inception_4e/double_3x3_reduce_bn" }
 layer { name: "inception_4e/double_3x3_1" type: "Convolution" bottom: "inception_4e/double_3x3_reduce_bn" top: "inception_4e/double_3x3_1"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -610,7 +610,7 @@ layer { name: "inception_4e/double_3x3_1" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4e/double_3x3_1_bn" type: "BN" bottom: "inception_4e/double_3x3_1" top: "inception_4e/double_3x3_1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4e/relu_double_3x3_1" type: "ReLU" bottom: "inception_4e/double_3x3_1_bn" top: "inception_4e/double_3x3_1_bn" }
 layer { name: "inception_4e/double_3x3_2" type: "Convolution" bottom: "inception_4e/double_3x3_1_bn" top: "inception_4e/double_3x3_2"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -619,7 +619,7 @@ layer { name: "inception_4e/double_3x3_2" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_4e/double_3x3_2_bn" type: "BN" bottom: "inception_4e/double_3x3_2" top: "inception_4e/double_3x3_2_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_4e/relu_double_3x3_2" type: "ReLU" bottom: "inception_4e/double_3x3_2_bn" top: "inception_4e/double_3x3_2_bn" }
 layer { name: "inception_4e/pool" type: "Pooling" bottom: "inception_4d/output" top: "inception_4e/pool"
   pooling_param { pool: MAX kernel_size: 3 stride: 2 } }
@@ -637,7 +637,7 @@ layer { name: "inception_5a/1x1" type: "Convolution" bottom: "inception_4e/outpu
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5a/1x1_bn" type: "BN" bottom: "inception_5a/1x1" top: "inception_5a/1x1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5a/relu_1x1" type: "ReLU" bottom: "inception_5a/1x1_bn" top: "inception_5a/1x1_bn" }
 layer { name: "inception_5a/3x3_reduce" type: "Convolution" bottom: "inception_4e/output" top: "inception_5a/3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -646,7 +646,7 @@ layer { name: "inception_5a/3x3_reduce" type: "Convolution" bottom: "inception_4
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5a/3x3_reduce_bn" type: "BN" bottom: "inception_5a/3x3_reduce" top: "inception_5a/3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5a/relu_3x3_reduce" type: "ReLU" bottom: "inception_5a/3x3_reduce_bn" top: "inception_5a/3x3_reduce_bn" }
 layer { name: "inception_5a/3x3" type: "Convolution" bottom: "inception_5a/3x3_reduce_bn" top: "inception_5a/3x3"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -655,7 +655,7 @@ layer { name: "inception_5a/3x3" type: "Convolution" bottom: "inception_5a/3x3_r
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5a/3x3_bn" type: "BN" bottom: "inception_5a/3x3" top: "inception_5a/3x3_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5a/relu_3x3" type: "ReLU" bottom: "inception_5a/3x3_bn" top: "inception_5a/3x3_bn" }
 layer { name: "inception_5a/double_3x3_reduce" type: "Convolution" bottom: "inception_4e/output" top: "inception_5a/double_3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -664,7 +664,7 @@ layer { name: "inception_5a/double_3x3_reduce" type: "Convolution" bottom: "ince
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5a/double_3x3_reduce_bn" type: "BN" bottom: "inception_5a/double_3x3_reduce" top: "inception_5a/double_3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5a/relu_double_3x3_reduce" type: "ReLU" bottom: "inception_5a/double_3x3_reduce_bn" top: "inception_5a/double_3x3_reduce_bn" }
 layer { name: "inception_5a/double_3x3_1" type: "Convolution" bottom: "inception_5a/double_3x3_reduce_bn" top: "inception_5a/double_3x3_1"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -673,7 +673,7 @@ layer { name: "inception_5a/double_3x3_1" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5a/double_3x3_1_bn" type: "BN" bottom: "inception_5a/double_3x3_1" top: "inception_5a/double_3x3_1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5a/relu_double_3x3_1" type: "ReLU" bottom: "inception_5a/double_3x3_1_bn" top: "inception_5a/double_3x3_1_bn" }
 layer { name: "inception_5a/double_3x3_2" type: "Convolution" bottom: "inception_5a/double_3x3_1_bn" top: "inception_5a/double_3x3_2"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -682,7 +682,7 @@ layer { name: "inception_5a/double_3x3_2" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5a/double_3x3_2_bn" type: "BN" bottom: "inception_5a/double_3x3_2" top: "inception_5a/double_3x3_2_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5a/relu_double_3x3_2" type: "ReLU" bottom: "inception_5a/double_3x3_2_bn" top: "inception_5a/double_3x3_2_bn" }
 layer { name: "inception_5a/pool" type: "Pooling" bottom: "inception_4e/output" top: "inception_5a/pool"
   pooling_param { pool: AVE kernel_size: 3 stride: 1 pad: 1 } }
@@ -693,7 +693,7 @@ layer { name: "inception_5a/pool_proj" type: "Convolution" bottom: "inception_5a
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5a/pool_proj_bn" type: "BN" bottom: "inception_5a/pool_proj" top: "inception_5a/pool_proj_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5a/relu_pool_proj" type: "ReLU" bottom: "inception_5a/pool_proj_bn" top: "inception_5a/pool_proj_bn" }
 layer { name: "inception_5a/output" type: "Concat"
   bottom: "inception_5a/1x1_bn"
@@ -710,7 +710,7 @@ layer { name: "inception_5b/1x1" type: "Convolution" bottom: "inception_5a/outpu
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5b/1x1_bn" type: "BN" bottom: "inception_5b/1x1" top: "inception_5b/1x1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5b/relu_1x1" type: "ReLU" bottom: "inception_5b/1x1_bn" top: "inception_5b/1x1_bn" }
 layer { name: "inception_5b/3x3_reduce" type: "Convolution" bottom: "inception_5a/output" top: "inception_5b/3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -719,7 +719,7 @@ layer { name: "inception_5b/3x3_reduce" type: "Convolution" bottom: "inception_5
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5b/3x3_reduce_bn" type: "BN" bottom: "inception_5b/3x3_reduce" top: "inception_5b/3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5b/relu_3x3_reduce" type: "ReLU" bottom: "inception_5b/3x3_reduce_bn" top: "inception_5b/3x3_reduce_bn" }
 layer { name: "inception_5b/3x3" type: "Convolution" bottom: "inception_5b/3x3_reduce_bn" top: "inception_5b/3x3"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -728,7 +728,7 @@ layer { name: "inception_5b/3x3" type: "Convolution" bottom: "inception_5b/3x3_r
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5b/3x3_bn" type: "BN" bottom: "inception_5b/3x3" top: "inception_5b/3x3_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5b/relu_3x3" type: "ReLU" bottom: "inception_5b/3x3_bn" top: "inception_5b/3x3_bn" }
 layer { name: "inception_5b/double_3x3_reduce" type: "Convolution" bottom: "inception_5a/output" top: "inception_5b/double_3x3_reduce"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -737,7 +737,7 @@ layer { name: "inception_5b/double_3x3_reduce" type: "Convolution" bottom: "ince
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5b/double_3x3_reduce_bn" type: "BN" bottom: "inception_5b/double_3x3_reduce" top: "inception_5b/double_3x3_reduce_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5b/relu_double_3x3_reduce" type: "ReLU" bottom: "inception_5b/double_3x3_reduce_bn" top: "inception_5b/double_3x3_reduce_bn" }
 layer { name: "inception_5b/double_3x3_1" type: "Convolution" bottom: "inception_5b/double_3x3_reduce_bn" top: "inception_5b/double_3x3_1"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -746,7 +746,7 @@ layer { name: "inception_5b/double_3x3_1" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5b/double_3x3_1_bn" type: "BN" bottom: "inception_5b/double_3x3_1" top: "inception_5b/double_3x3_1_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5b/relu_double_3x3_1" type: "ReLU" bottom: "inception_5b/double_3x3_1_bn" top: "inception_5b/double_3x3_1_bn" }
 layer { name: "inception_5b/double_3x3_2" type: "Convolution" bottom: "inception_5b/double_3x3_1_bn" top: "inception_5b/double_3x3_2"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
@@ -755,7 +755,7 @@ layer { name: "inception_5b/double_3x3_2" type: "Convolution" bottom: "inception
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5b/double_3x3_2_bn" type: "BN" bottom: "inception_5b/double_3x3_2" top: "inception_5b/double_3x3_2_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5b/relu_double_3x3_2" type: "ReLU" bottom: "inception_5b/double_3x3_2_bn" top: "inception_5b/double_3x3_2_bn" }
 layer { name: "inception_5b/pool" type: "Pooling" bottom: "inception_5a/output" top: "inception_5b/pool"
   pooling_param { pool: MAX kernel_size: 3 stride: 1 pad: 1 } }
@@ -766,7 +766,7 @@ layer { name: "inception_5b/pool_proj" type: "Convolution" bottom: "inception_5b
     bias_filler { type: "constant" value: 0.2 } } }
 layer { name: "inception_5b/pool_proj_bn" type: "BN" bottom: "inception_5b/pool_proj" top: "inception_5b/pool_proj_bn"
   param { lr_mult: 1 decay_mult: 0 } param { lr_mult: 1 decay_mult: 0 }
-  bn_param { frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
+  bn_param { engine: CAFFE frozen: true slope_filler { type: "constant" value: 1 } bias_filler { type: "constant" value: 0 } } }
 layer { name: "inception_5b/relu_pool_proj" type: "ReLU" bottom: "inception_5b/pool_proj_bn" top: "inception_5b/pool_proj_bn" }
 layer { name: "inception_5b/output" type: "Concat"
   bottom: "inception_5b/1x1_bn"
@@ -779,16 +779,18 @@ layer { name: "inception_5b/output" type: "Concat"
 layer { name: "global_pool" top: "global_pool" bottom: "inception_5b/output" type: "Pooling"
   pooling_param { pool: AVE kernel_size: 7 stride: 1 } }
 layer { name: "dropout" top: "global_pool" bottom: "global_pool" type: "Dropout"
- dropout_param { dropout_ratio: 0.8 } }
+dropout_param { dropout_ratio: 0.7 } }
 
 ####################################### loss accuracy #######################################
 layer { name: "fc-action" type: "InnerProduct" bottom: "global_pool" top: "fc"
   param { lr_mult: 1 decay_mult: 1 } param { lr_mult: 2 decay_mult: 0 }
   inner_product_param { num_output: 101
     weight_filler { type: "gaussian" std: 0.001 }
-    bias_filler { type: "constant" value: 0 } }}
-layer { name: "reshape_fc" type: "Reshape" bottom: "fc" top: "reshape_fc" reshape_param { shape { dim: [-1, 1, 3, 101] } } } 
-layer { name: "segment_consensus" type: "Pooling" bottom: "reshape_fc" top: "pool_fusion" pooling_param { pool: AVE kernel_h: 3 kernel_w: 1 } }
-layer { name: "loss" type: "SoftmaxWithLoss" bottom: "pool_fusion" bottom: "label" top: "loss" softmax_param { axis: 3} }
-layer { name: "accuracy_top1" type: "Accuracy" bottom: "pool_fusion" bottom: "label" top: "accuracy" accuracy_param {axis:3}
+    bias_filler { type: "constant" value: 0 } } }
+layer { name: "reshape_fc" bottom: "fc" top: "reshape_fc" type: "Reshape"
+  reshape_param { shape { dim: [-1, 1, 3, 101 ] } }}
+layer { name: "pool_fusion" bottom: "reshape_fc" top: "pool_fc" type: "Pooling"
+  pooling_param { pool: AVE kernel_h: 3 kernel_w: 1} }
+layer { name: "loss" type: "SoftmaxWithLoss" bottom: "pool_fc" bottom: "label" top: "loss" softmax_param {axis: 3} }
+layer { name: "accuracy_top1" type: "Accuracy" bottom: "pool_fc" bottom: "label" top: "accuracy" accuracy_param {axis: 3}
   include { phase: TEST } }

@@ -9,7 +9,7 @@ test_initialization: true
 display: 20
 average_loss: 20
 #snapshot: 500
-snapshot_prefix: "models/ucf101_split1_tsn_rgb_bn_inception"
+snapshot_prefix: "models/ucf101_split3_tsn_rgb_bn_inception"
 debug_info: false
 
 # learning rate
