@@ -1,3 +1,5 @@
+#This my fork of TSN. Please refer to [yjxiong's repo](https://github.com/yjxiong/temporal-segment-networks) for original branch
+
 #Temporal Segment Networks (TSN)
 
 This repository holds the codes and models for the paper
