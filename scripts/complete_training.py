@@ -16,13 +16,7 @@ def deploy_prototxt(template_prefix):
                 generate_prototxt(template_prefix + data_source, split, proto_type)
             
 
- 
 
-def generate_deploy(template_prefix, split, proto_type):
-    template =  template_prefix + "_deploy_split{}.prototxt".format(split)
-    output_path = os.path.join(output_folder, template_prefix)
-    command = ["cd", template, output_path]
-    sys.call(command)
     
 def generate_prototxt(template_prefix, split, proto_type):
     template =  template_prefix + "_{}.prototxt".format(proto_type)
@@ -35,6 +29,9 @@ def generate_prototxt(template_prefix, split, proto_type):
     
     output_content = template_content.replace("split1", "split{}".format(split))
     output_content = output_content.replace("split_1", "split_{}".format(split))
+    output_content = output_content.replace("train_val.prototxt", "train_val_split{}.prototxt".format(split))
+    output_content = output_content.replace("models/ucf101/", "models/ucf101/specific_models/")
+    
     w = open(output_path, 'w')
     w.write(output_content)
     w.close()
@@ -71,12 +68,14 @@ if __name__ == "__main__":
     for split in splits:
         split = str(split)
         for data_source in data_sources:
-            print("Deploy Training procees of split {} on {}".format(split, data_source))
+            #print("Deploy Training procees of split {} on {}".format(split, data_source))
             command = ["bash", "scripts/train_tsn_split.sh", "ucf101", data_source, split]
             #command = ["echo", "YooHoo!"]
+            print(" ".join(command))
             subprocess.call(command)
+            #print(command)
 
-        print("Training procees of split {} on {} complete")
+        #print("Training procees of split {} on {} complete".format(split, data_source))
     print("All training procees are complete!")
     
     
